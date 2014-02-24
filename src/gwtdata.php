@@ -246,6 +246,60 @@
 			}
 
 		/**
+		 *  Lookup the file contents based on the given URL.
+		 *
+		 *  @param $site    String   Site URL available in GWT Account.
+		 */
+			public function LookupCSV($site)
+			{
+				if(self::IsLoggedIn() === true) {
+					$downloadUrls = self::GetDownloadUrls($site);
+					$filename = parse_url($site, PHP_URL_HOST) ."-". date("Ymd-His");
+					$tables = $this->_tables;
+					$results = [];
+					foreach($tables as $table) {
+						if($table=="CRAWL_ERRORS") {
+							$results[] = self::LookupCSV_CrawlErrors($site, $savepath);
+						}
+						elseif($table=="CONTENT_ERRORS") {
+							$results[] = self::LookupCSV_XTRA($site, $savepath,
+							  "html-suggestions", "\)", "CONTENT_ERRORS", "content-problems-dl");
+						}
+						elseif($table=="CONTENT_KEYWORDS") {
+							$results[] = self::LookupCSV_XTRA($site, $savepath,
+							  "keywords", "\)", "CONTENT_KEYWORDS", "content-words-dl");
+						}
+						elseif($table=="INTERNAL_LINKS") {
+							$results[] = self::LookupCSV_XTRA($site, $savepath,
+							  "internal-links", "\)", "INTERNAL_LINKS", "internal-links-dl");
+						}
+						elseif($table=="EXTERNAL_LINKS") {
+							$results[] = self::LookupCSV_XTRA($site, $savepath,
+							  "external-links-domain", "\)", "EXTERNAL_LINKS", "external-links-domain-dl");
+						}
+						elseif($table=="SOCIAL_ACTIVITY") {
+							$results[] = self::LookupCSV_XTRA($site, $savepath,
+							  "social-activity", "x26", "SOCIAL_ACTIVITY", "social-activity-dl");
+						}
+                        elseif($table=="LATEST_BACKLINKS") {
+                            $results[] = self::LookupCSV_XTRA($site, $savepath,
+							  "external-links-domain", "\)", "LATEST_BACKLINKS", "backlinks-latest-dl");
+                        }
+						else {
+							$finalName = "$savepath/$table-$filename.csv";
+							$finalUrl = $downloadUrls[$table] ."&prop=ALL&db=%s&de=%s&more=true";
+							$finalUrl = sprintf($finalUrl, $this->_daterange[0], $this->_daterange[1]);
+							$results[] = array(
+								'data' => self::GetData($finalUrl),
+								'finalName' => $finalName,
+							);
+						}
+					}
+					return $results;
+				} else { return false; }
+			}
+
+		/**
 		 *  Downloads the file based on the given URL.
 		 *
 		 *  @param $site    String   Site URL available in GWT Account.
@@ -254,44 +308,33 @@
 			public function DownloadCSV($site, $savepath=".")
 			{
 				if(self::IsLoggedIn() === true) {
-					$downloadUrls = self::GetDownloadUrls($site);
-					$filename = parse_url($site, PHP_URL_HOST) ."-". date("Ymd-His");
-					$tables = $this->_tables;
-					foreach($tables as $table) {
-						if($table=="CRAWL_ERRORS") {
-							self::DownloadCSV_CrawlErrors($site, $savepath);
-						}
-						elseif($table=="CONTENT_ERRORS") {
-							self::DownloadCSV_XTRA($site, $savepath,
-							  "html-suggestions", "\)", "CONTENT_ERRORS", "content-problems-dl");
-						}
-						elseif($table=="CONTENT_KEYWORDS") {
-							self::DownloadCSV_XTRA($site, $savepath,
-							  "keywords", "\)", "CONTENT_KEYWORDS", "content-words-dl");
-						}
-						elseif($table=="INTERNAL_LINKS") {
-							self::DownloadCSV_XTRA($site, $savepath,
-							  "internal-links", "\)", "INTERNAL_LINKS", "internal-links-dl");
-						}
-						elseif($table=="EXTERNAL_LINKS") {
-							self::DownloadCSV_XTRA($site, $savepath,
-							  "external-links-domain", "\)", "EXTERNAL_LINKS", "external-links-domain-dl");
-						}
-						elseif($table=="SOCIAL_ACTIVITY") {
-							self::DownloadCSV_XTRA($site, $savepath,
-							  "social-activity", "x26", "SOCIAL_ACTIVITY", "social-activity-dl");
-						}
-                        elseif($table=="LATEST_BACKLINKS") {
-                            self::DownloadCSV_XTRA($site, $savepath,
-							  "external-links-domain", "\)", "LATEST_BACKLINKS", "backlinks-latest-dl");
-                        }
-						else {
-							$finalName = "$savepath/$table-$filename.csv";
-							$finalUrl = $downloadUrls[$table] ."&prop=ALL&db=%s&de=%s&more=true";
-							$finalUrl = sprintf($finalUrl, $this->_daterange[0], $this->_daterange[1]);
-							self::SaveData($finalUrl,$finalName);
-						}
+					$results = self::LookupCSV($site);
+					foreach ($results as $row) {
+						self::SaveData($row['data'], $row['finalName']);
 					}
+				} else { return false; }
+			}
+
+		/**
+		 *  Lookup "unofficial" download based on the given URL.
+		 *
+		 *  @param $site    String   Site URL available in GWT Account.
+		 *  @param $savepath  String   Optional path to save CSV to (no trailing slash!).
+		 */
+			public function LookupCSV_XTRA($site, $savepath=".", $tokenUri, $tokenDelimiter, $filenamePrefix, $dlUri)
+			{
+				if(self::IsLoggedIn() === true) {
+					$uri = self::SERVICEURI . $tokenUri . "?hl=%s&siteUrl=%s";
+					$_uri = sprintf($uri, $this->_language, $site);
+					$token = self::GetToken($_uri, $tokenDelimiter, $dlUri);
+					$filename = parse_url($site, PHP_URL_HOST) ."-". date("Ymd-His");
+					$finalName = "$savepath/$filenamePrefix-$filename.csv";
+					$url = self::SERVICEURI . $dlUri . "?hl=%s&siteUrl=%s&security_token=%s&prop=ALL&db=%s&de=%s&more=true";
+					$_url = sprintf($url, $this->_language, $site, $token, $this->_daterange[0], $this->_daterange[1]);
+					return array(
+						'data' => self::GetData($_url),
+						'finalName' => $finalName
+					);
 				} else { return false; }
 			}
 
@@ -304,31 +347,26 @@
 			public function DownloadCSV_XTRA($site, $savepath=".", $tokenUri, $tokenDelimiter, $filenamePrefix, $dlUri)
 			{
 				if(self::IsLoggedIn() === true) {
-					$uri = self::SERVICEURI . $tokenUri . "?hl=%s&siteUrl=%s";
-					$_uri = sprintf($uri, $this->_language, $site);
-					$token = self::GetToken($_uri, $tokenDelimiter, $dlUri);
-					$filename = parse_url($site, PHP_URL_HOST) ."-". date("Ymd-His");
-					$finalName = "$savepath/$filenamePrefix-$filename.csv";
-					$url = self::SERVICEURI . $dlUri . "?hl=%s&siteUrl=%s&security_token=%s&prop=ALL&db=%s&de=%s&more=true";
-					$_url = sprintf($url, $this->_language, $site, $token, $this->_daterange[0], $this->_daterange[1]);
-					self::SaveData($_url,$finalName);
+					$row = self::LookupCSV_XTRA($site, $savepath, $tokenUri, $tokenDelimiter, $filenamePrefix, $dlUri);
+					self::SaveData($row['data'], $row['finalName']);
 				} else { return false; }
 			}
 
 		/**
-		 *  Downloads the Crawl Errors file based on the given URL.
+		 *  Lookup the Crawl Errors file based on the given URL.
 		 *
 		 *  @param $site    String   Site URL available in GWT Account.
 		 *  @param $savepath  String   Optional: Path to save CSV to (no trailing slash!).
 		 *  @param $separated Boolean  Optional: If true, the method saves separated CSV files
 		 *                             for each error type. Default: Merge errors in one file.
 		 */
-			public function DownloadCSV_CrawlErrors($site, $savepath=".", $separated=false)
+			public function LookupCSV_CrawlErrors($site, $savepath=".", $separated=false)
 			{
 				if(self::IsLoggedIn() === true) {
 					$type_param = "we";
 					$filename = parse_url($site, PHP_URL_HOST) ."-". date("Ymd-His");
 					if($separated) {
+						$results = [];
 						foreach($this->_errTablesSort as $sortid => $sortname) {
 							foreach($this->_errTablesType as $typeid => $typename) {
 								if($typeid == 1) {
@@ -343,9 +381,13 @@
 								$finalName = "$savepath/CRAWL_ERRORS-$typename-$sortname-$filename.csv";
 								$url = self::SERVICEURI."crawl-errors-dl?hl=%s&siteUrl=%s&security_token=%s&type=%s&sort=%s";
 								$_url = sprintf($url, $this->_language, $site, $token, $typeid, $sortid);
-								self::SaveData($_url,$finalName);
+								$results[] = array(
+									'data' => self::GetData($_url),
+									'finalName' => $finalName
+								);
 							}
 						}
+						return $results;
 					}
 					else {
 						$uri = self::SERVICEURI."crawl-errors?hl=en&siteUrl=$site&tid=$type_param";
@@ -353,8 +395,27 @@
 						$finalName = "$savepath/CRAWL_ERRORS-$filename.csv";
 						$url = self::SERVICEURI."crawl-errors-dl?hl=%s&siteUrl=%s&security_token=%s&type=0";
 						$_url = sprintf($url, $this->_language, $site, $token);
-						self::SaveData($_url,$finalName);
+						return array(
+							'data' => self::GetData($_url),
+							'finalName' => $finalName
+						);
 					}
+				} else { return false; }
+			}
+
+		/**
+		 *  Downloads the Crawl Errors file based on the given URL.
+		 *
+		 *  @param $site    String   Site URL available in GWT Account.
+		 *  @param $savepath  String   Optional: Path to save CSV to (no trailing slash!).
+		 *  @param $separated Boolean  Optional: If true, the method saves separated CSV files
+		 *                             for each error type. Default: Merge errors in one file.
+		 */
+			public function DownloadCSV_CrawlErrors($site, $savepath=".", $separated=false)
+			{
+				if(self::IsLoggedIn() === true) {
+					$row = self::LookupCSV_XTRA($site, $savepath, $separated);
+					self::SaveData($row['data'], $row['finalName']);
 				} else { return false; }
 			}
 
@@ -364,9 +425,8 @@
 		 *  @param $finalUrl   String   CSV Download URI.
 		 *  @param $finalName  String   Filepointer to save location.
 		 */
-			private function SaveData($finalUrl, $finalName)
+			private function SaveData($data, $finalName)
 			{
-				$data = self::GetData($finalUrl);
 				if(strlen($data) > 1 && file_put_contents($finalName, utf8_decode($data))) {
 					array_push($this->_downloaded, realpath($finalName));
 					return true;
