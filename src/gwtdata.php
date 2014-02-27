@@ -250,7 +250,7 @@
 		 *
 		 *  @param $site    String   Site URL available in GWT Account.
 		 */
-			public function LookupCSV($site)
+			public function LookupCSV($site, $savepath='.')
 			{
 				if(self::IsLoggedIn() === true) {
 					$downloadUrls = self::GetDownloadUrls($site);
