@@ -300,6 +300,24 @@
 			}
 
 		/**
+		 *  SIMPLE Lookup the file contents based on the given URL.
+		 *
+		 *  @param $site    String   Site URL available in GWT Account.
+		 *  @param $table   String   Table data to return.
+		 */
+			public function LookupCSVSimple($site, $tokenUri, $dlUri, $tokenDelimiter="\)", $addedParams="")
+			{
+				if(self::IsLoggedIn() === true) {
+					$uri = self::SERVICEURI . $tokenUri . "?hl=%s&siteUrl=%s";
+					$_uri = sprintf($uri, $this->_language, $site) . $addedParams;
+					$token = self::GetToken($_uri, $tokenDelimiter, $dlUri);
+					$url = self::SERVICEURI . $dlUri . "?hl=%s&siteUrl=%s&security_token=%s&prop=ALL&db=%s&de=%s&more=true";
+					$_url = sprintf($url, $this->_language, $site, $token, $this->_daterange[0], $this->_daterange[1]) . $addedParams;
+					return self::GetData($_url);
+				} else { return false; }
+			}
+
+		/**
 		 *  Downloads the file based on the given URL.
 		 *
 		 *  @param $site    String   Site URL available in GWT Account.
